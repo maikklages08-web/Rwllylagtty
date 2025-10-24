@@ -1,0 +1,53 @@
+name: 🏗️ Build Kivy APK with Buildozer
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 🧩 Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: 🐍 Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+
+    - name: 📦 Install Dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y git zip unzip openjdk-17-jdk libncurses5
+        pip install --upgrade pip
+        pip install Cython==0.29.33 buildozer
+
+    - name: 🧰 Prepare Buildozer Environment
+      run: |
+        if [ ! -f buildozer.spec ]; then buildozer init; fi
+
+        sed -i 's/^# *android.accept_sdk_license.*/android.accept_sdk_license = True/' buildozer.spec || echo "android.accept_sdk_license = True" >> buildozer.spec
+        sed -i 's/^# *android.api.*/android.api = 33/' buildozer.spec || echo "android.api = 33" >> buildozer.spec
+        sed -i 's/^# *android.sdk.*/android.sdk = 33/' buildozer.spec || echo "android.sdk = 33" >> buildozer.spec
+        sed -i 's/^# *android.ndk.*/android.ndk = 25b/' buildozer.spec || echo "android.ndk = 25b" >> buildozer.spec
+
+        # 🔥 Fix: Stelle sicher, dass python-for-android korrekt vorhanden ist
+        rm -rf .buildozer/android/platform/python-for-android
+        mkdir -p .buildozer/android/platform
+        git clone https://github.com/kivy/python-for-android.git .buildozer/android/platform/python-for-android
+
+        buildozer android clean
+
+    - name: 🏗️ Build APK
+      env:
+        JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+      run: |
+        export PATH=$PATH:$JAVA_HOME/bin
+        buildozer -v android debug
+
+    - name: 📤 Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug.apk
+        path: bin/*.apk
